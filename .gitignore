@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Environment
+.env
+
+# Uploads & results (runtime data)
+uploads/
+results/
+*.mp4
+*.avi
+*.mov
+*.jpg
+*.jpeg
+*.png
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# MLflow / model artifacts (runtime data)
+mlruns/
+mlflow.db
+mlflow-artifacts/
+models/*.pkl
+models/*.joblib
+
+# Misc runtime
+annotated/
+scan_secrets.py

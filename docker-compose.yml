@@ -1,0 +1,82 @@
+version: "3.9"
+
+services:
+  # ── PhysioEval API ─────────────────────────────────────────────────────────
+  physio-api:
+    build: .
+    container_name: physio-eval-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - USE_LOCAL_STORAGE=true
+      - LOCAL_UPLOAD_DIR=/app/uploads
+      - LOCAL_RESULTS_DIR=/app/results
+      - MODEL_DIR=/app/models
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+      - ./models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - mlflow
+
+  # ── MLflow Tracking Server ────────────────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.12.2
+    container_name: physio-mlflow
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlflow.db
+      --default-artifact-root /mlruns
+      --host 0.0.0.0
+      --port 5000
+    volumes:
+      - mlflow-data:/mlruns
+    restart: unless-stopped
+
+  # ── Prometheus ────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: physio-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    restart: unless-stopped
+    depends_on:
+      - physio-api
+
+  # ── Grafana ───────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: physio-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=physioeval
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/physioeval.json:ro
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  mlflow-data:
+  prometheus-data:
+  grafana-data:

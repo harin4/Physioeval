@@ -1,0 +1,151 @@
+{
+  "title": "PhysioEval — AI Biomechanics Dashboard",
+  "uid": "physioeval-main",
+  "schemaVersion": 37,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Throughput (req/min)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(physio_requests_total[1m]) * 60",
+          "legendFormat": "req/min"
+        }
+      ],
+      "options": { "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [
+        { "color": "green", "value": 0 },
+        { "color": "yellow", "value": 50 },
+        { "color": "red",    "value": 100 }
+      ]}}}
+    },
+    {
+      "id": 2,
+      "title": "P95 Latency (ms)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(physio_request_duration_seconds_bucket{endpoint='/api/v1/evaluate'}[5m])) * 1000",
+          "legendFormat": "p95 ms"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms", "thresholds": { "steps": [
+        { "color": "green",  "value": 0 },
+        { "color": "yellow", "value": 2000 },
+        { "color": "red",    "value": 5000 }
+      ]}}}
+    },
+    {
+      "id": 3,
+      "title": "Active Requests",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        { "expr": "physio_active_requests", "legendFormat": "active" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Error Rate (%)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(physio_requests_total{status_code=~'5..'}[5m]) / rate(physio_requests_total[5m]) * 100",
+          "legendFormat": "error %"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "thresholds": { "steps": [
+        { "color": "green",  "value": 0 },
+        { "color": "yellow", "value": 1 },
+        { "color": "red",    "value": 5 }
+      ]}}}
+    },
+    {
+      "id": 5,
+      "title": "Evaluation Score Distribution",
+      "type": "histogram",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "physio_score_histogram_bucket",
+          "legendFormat": "score"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Evaluation Outcomes",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "increase(physio_evaluation_status_total[1h])",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "ML Confidence Distribution",
+      "type": "histogram",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "physio_ml_confidence_histogram_bucket",
+          "legendFormat": "confidence"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Anomaly Detections (per hour)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "increase(physio_anomaly_detections_total[1h])",
+          "legendFormat": "anomalies/hr"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Frames Processed (per minute)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(physio_frames_analyzed_total[1m]) * 60",
+          "legendFormat": "frames/min"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Request Latency by Endpoint",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(physio_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "p50 {{endpoint}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(physio_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95 {{endpoint}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(physio_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "p99 {{endpoint}}"
+        }
+      ]
+    }
+  ]
+}

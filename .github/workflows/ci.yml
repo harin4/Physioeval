@@ -1,0 +1,167 @@
+name: PhysioEval CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-glx libglib2.0-0 libmagic1
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run all tests with coverage
+        env:
+          USE_LOCAL_STORAGE: "true"
+          DEBUG: "true"
+          MLFLOW_TRACKING_URI: "file:./mlruns"
+        run: |
+          pip install pytest-cov
+          pytest tests/ -v --tb=short \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=70
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  # ────────────────────────────────────────────────────────────────────────────
+  ml-training:
+    name: ML Pipeline Training & Validation
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Train ML model (synthetic data)
+        env:
+          MLFLOW_TRACKING_URI: "file:./mlruns"
+          MODEL_DIR: "./models"
+        run: |
+          python -m app.services.ml_pipeline
+
+      - name: Validate model metrics (F1 threshold)
+        env:
+          MLFLOW_TRACKING_URI: "file:./mlruns"
+          MODEL_DIR: "./models"
+        run: |
+          python - << 'EOF'
+          from app.services.ml_pipeline import MLPipeline
+          import sys
+
+          pipe = MLPipeline()
+          metrics = pipe.train(n_synthetic=400)
+
+          cv_f1 = metrics.get("cv_f1_mean", 0)
+          train_acc = metrics.get("train_accuracy", 0)
+
+          print(f"CV F1:        {cv_f1:.4f}")
+          print(f"Train Acc:    {train_acc:.4f}")
+
+          if cv_f1 < 0.70:
+              print(f"FAIL: CV F1 {cv_f1:.3f} < 0.70 threshold")
+              sys.exit(1)
+          if train_acc < 0.80:
+              print(f"FAIL: Train accuracy {train_acc:.3f} < 0.80 threshold")
+              sys.exit(1)
+
+          print("PASS: All ML quality gates met.")
+          EOF
+
+      - name: Upload trained model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-models
+          path: models/
+
+  # ────────────────────────────────────────────────────────────────────────────
+  security-scan:
+    name: Security & Vulnerability Scan
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scan (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"   # warn only; set to 1 to fail on HIGH/CRITICAL
+          format: "table"
+
+      - name: Check for secrets with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true   # report but don't block PR
+
+  # ────────────────────────────────────────────────────────────────────────────
+  docker:
+    name: Build & Smoke-Test Docker Image
+    needs: [test, ml-training]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download trained models
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-models
+          path: models/
+
+      - name: Build Docker image
+        run: docker build -t physio-eval:${{ github.sha }} -t physio-eval:latest .
+
+      - name: Smoke test container
+        run: |
+          docker run -d --name physio-test \
+            -e USE_LOCAL_STORAGE=true \
+            -e MLFLOW_TRACKING_URI=file:./mlruns \
+            -p 8000:8000 physio-eval:latest
+          sleep 10
+          curl -f http://localhost:8000/health
+          curl -f http://localhost:8000/metrics
+          curl -f http://localhost:8000/api/v1/ml/status
+          docker stop physio-test
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: physio-eval:latest
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
+          format: "table"

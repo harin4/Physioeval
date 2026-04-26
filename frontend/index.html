@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PhysioEval – Exercise Evaluator</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p  { font-size: 0.85rem; opacity: 0.85; }
+
+    main {
+      max-width: 820px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Upload zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--bg);
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+    .drop-zone .icon { font-size: 2.5rem; }
+    .drop-zone p { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
+    .drop-zone strong { color: var(--primary); }
+    #file-input { display: none; }
+
+    /* File preview */
+    #file-preview { display: none; margin-top: 0.75rem; }
+    #file-preview .file-info {
+      display: flex; align-items: center; gap: 0.75rem;
+      background: #eff6ff; border: 1px solid #bfdbfe;
+      border-radius: 8px; padding: 0.6rem 1rem;
+    }
+    #file-preview .file-info span { flex: 1; font-size: 0.88rem; }
+    #file-preview button {
+      background: none; border: none; cursor: pointer;
+      color: var(--danger); font-size: 1.1rem;
+    }
+
+    /* Form controls */
+    label.field-label {
+      display: block; font-size: 0.85rem;
+      font-weight: 500; margin-bottom: 0.3rem;
+    }
+    select, input[type="text"] {
+      width: 100%; padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      font-size: 0.9rem; outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus, input:focus { border-color: var(--primary); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.65rem 1.4rem; border-radius: 8px;
+      font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; border: none; transition: background 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+    .btn-outline {
+      background: white; color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .btn-outline:hover { background: #eff6ff; }
+
+    .actions { display: flex; gap: 0.75rem; margin-top: 1rem; }
+
+    /* Score display */
+    #result-section { display: none; }
+
+    .score-ring {
+      position: relative; width: 120px; height: 120px; margin: 0 auto 1rem;
+    }
+    .score-ring svg { transform: rotate(-90deg); }
+    .score-ring .score-text {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      font-size: 1.7rem; font-weight: 700;
+    }
+
+    .status-badge {
+      display: inline-block; padding: 0.25rem 0.75rem;
+      border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .status-correct   { background: #dcfce7; color: var(--success); }
+    .status-partial   { background: #fef3c7; color: var(--warning); }
+    .status-incorrect { background: #fee2e2; color: var(--danger); }
+    .status-no_pose_detected { background: #f1f5f9; color: var(--muted); }
+
+    .feedback-box {
+      background: var(--bg); border-left: 4px solid var(--primary);
+      border-radius: 0 8px 8px 0; padding: 0.75rem 1rem;
+      font-size: 0.9rem; line-height: 1.55; margin: 1rem 0;
+    }
+
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .metric-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.75rem 1rem;
+    }
+    .metric-card .label { font-size: 0.75rem; color: var(--muted); }
+    .metric-card .value { font-size: 1.2rem; font-weight: 700; margin-top: 0.15rem; }
+
+    /* History */
+    #history-list { list-style: none; display: grid; gap: 0.6rem; }
+    #history-list li {
+      display: flex; align-items: center; gap: 0.75rem;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.6rem 0.9rem;
+      font-size: 0.85rem;
+    }
+    #history-list .hist-score {
+      font-weight: 700; font-size: 1rem; min-width: 40px;
+    }
+    #history-list .hist-meta { flex: 1; color: var(--muted); font-size: 0.78rem; }
+
+    /* Spinner */
+    .spinner {
+      width: 24px; height: 24px; border: 3px solid #bfdbfe;
+      border-top-color: var(--primary); border-radius: 50%;
+      animation: spin 0.7s linear infinite; display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-overlay {
+      display: none; flex-direction: column; align-items: center;
+      gap: 0.75rem; padding: 1.5rem; text-align: center;
+    }
+    .loading-overlay p { color: var(--muted); font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🏥 PhysioEval</h1>
+    <p>AI-Powered Physiotherapy Exercise Evaluator</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- Upload Card -->
+  <div class="card">
+    <h2>📤 Upload Exercise Media</h2>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div class="icon">🎥</div>
+      <p><strong>Click to browse</strong> or drag & drop</p>
+      <p>Supports MP4, AVI, MOV, JPG, PNG · Max 50 MB</p>
+    </div>
+    <input type="file" id="file-input" accept="video/*,image/*" />
+
+    <div id="file-preview">
+      <div class="file-info">
+        <span id="file-name">No file selected</span>
+        <button onclick="clearFile()" title="Remove file">✕</button>
+      </div>
+    </div>
+
+    <div style="margin-top:1rem; display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+      <div>
+        <label class="field-label" for="exercise-type">Exercise Type</label>
+        <select id="exercise-type">
+          <option value="arm_raise">Arm Raise</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label" for="session-id">Session ID (optional)</label>
+        <input type="text" id="session-id" placeholder="e.g. patient-001" />
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="submit-btn" onclick="submitEvaluation()">
+        ▶ Evaluate Exercise
+      </button>
+      <button class="btn btn-outline" onclick="loadHistory()">📋 View History</button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="card loading-overlay" id="loading-card">
+    <div class="spinner"></div>
+    <p id="loading-msg">Analyzing pose and computing score…</p>
+  </div>
+
+  <!-- Result Card -->
+  <div class="card" id="result-section">
+    <h2>📊 Evaluation Result</h2>
+
+    <div style="text-align:center; margin-bottom:1rem;">
+      <div class="score-ring">
+        <svg viewBox="0 0 120 120" width="120" height="120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#e2e8f0" stroke-width="10"/>
+          <circle id="score-arc" cx="60" cy="60" r="50" fill="none"
+                  stroke="#2563eb" stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="314" stroke-dashoffset="314"
+                  style="transition: stroke-dashoffset 0.8s ease"/>
+        </svg>
+        <div class="score-text" id="score-text">0</div>
+      </div>
+      <span class="status-badge" id="status-badge">—</span>
+    </div>
+
+    <div class="feedback-box" id="feedback-box">—</div>
+
+    <div class="metrics">
+      <div class="metric-card">
+        <div class="label">Shoulder Angle</div>
+        <div class="value" id="metric-angle">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">Frames Analyzed</div>
+        <div class="value" id="metric-frames">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">Evaluation ID</div>
+        <div class="value" style="font-size:0.65rem; word-break:break-all;" id="metric-id">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">Timestamp</div>
+        <div class="value" style="font-size:0.8rem;" id="metric-time">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Card -->
+  <div class="card" id="history-card" style="display:none;">
+    <h2>📋 Evaluation History</h2>
+    <ul id="history-list"></ul>
+  </div>
+
+</main>
+
+<script>
+  const API = '';  // same origin; change to http://localhost:8000 for local dev
+
+  // ── Drag & drop ──────────────────────────────────────────
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) setFile(f);
+  });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+  function setFile(f) {
+    document.getElementById('file-name').textContent = `${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)`;
+    document.getElementById('file-preview').style.display = 'block';
+    fileInput._selectedFile = f;
+  }
+
+  function clearFile() {
+    fileInput.value = '';
+    fileInput._selectedFile = null;
+    document.getElementById('file-preview').style.display = 'none';
+  }
+
+  // ── Submit ────────────────────────────────────────────────
+  async function submitEvaluation() {
+    const file = fileInput._selectedFile || fileInput.files[0];
+    if (!file) { alert('Please select a video or image file first.'); return; }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    document.getElementById('loading-card').style.display = 'flex';
+    document.getElementById('result-section').style.display = 'none';
+    document.getElementById('history-card').style.display = 'none';
+
+    const loadingMsgs = [
+      'Extracting frames…', 'Detecting body pose…',
+      'Computing joint angles…', 'Calculating score…'
+    ];
+    let mi = 0;
+    const msgEl = document.getElementById('loading-msg');
+    const interval = setInterval(() => { msgEl.textContent = loadingMsgs[mi++ % loadingMsgs.length]; }, 1800);
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('exercise_type', document.getElementById('exercise-type').value);
+    const sid = document.getElementById('session-id').value.trim();
+    if (sid) fd.append('session_id', sid);
+
+    try {
+      const res = await fetch(`${API}/api/v1/evaluate`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Server error');
+      }
+      const data = await res.json();
+      showResult(data);
+    } catch (e) {
+      alert(`Error: ${e.message}`);
+    } finally {
+      clearInterval(interval);
+      btn.disabled = false;
+      document.getElementById('loading-card').style.display = 'none';
+    }
+  }
+
+  // ── Display result ────────────────────────────────────────
+  function showResult(d) {
+    document.getElementById('result-section').style.display = 'block';
+
+    // Score ring
+    const arc = document.getElementById('score-arc');
+    const circumference = 314;
+    const offset = circumference - (d.score / 100) * circumference;
+    arc.style.strokeDashoffset = offset;
+    arc.style.stroke = d.score >= 80 ? '#16a34a' : d.score >= 40 ? '#d97706' : '#dc2626';
+
+    document.getElementById('score-text').textContent = Math.round(d.score);
+
+    const badge = document.getElementById('status-badge');
+    badge.textContent = d.status.replace(/_/g, ' ');
+    badge.className = `status-badge status-${d.status}`;
+
+    document.getElementById('feedback-box').textContent = d.feedback;
+
+    const angle = d.joint_angles?.shoulder_angle;
+    document.getElementById('metric-angle').textContent = angle != null ? `${angle.toFixed(1)}°` : 'N/A';
+    document.getElementById('metric-frames').textContent = d.frames_analyzed;
+    document.getElementById('metric-id').textContent = d.evaluation_id;
+    document.getElementById('metric-time').textContent = new Date(d.timestamp).toLocaleString();
+  }
+
+  // ── History ───────────────────────────────────────────────
+  async function loadHistory() {
+    document.getElementById('result-section').style.display = 'none';
+    const hCard = document.getElementById('history-card');
+    hCard.style.display = 'block';
+    document.getElementById('history-list').innerHTML = '<li>Loading…</li>';
+
+    try {
+      const res = await fetch(`${API}/api/v1/history?limit=20`);
+      const data = await res.json();
+      const list = document.getElementById('history-list');
+      if (!data.records.length) {
+        list.innerHTML = '<li>No evaluations yet.</li>';
+        return;
+      }
+      list.innerHTML = data.records.map(r => `
+        <li>
+          <span class="hist-score" style="color:${r.score>=80?'#16a34a':r.score>=40?'#d97706':'#dc2626'}">${Math.round(r.score)}</span>
+          <div>
+            <div>${r.exercise_type.replace(/_/g,' ')} — <span class="status-badge status-${r.status}" style="font-size:0.7rem;">${r.status}</span></div>
+            <div class="hist-meta">${new Date(r.timestamp).toLocaleString()}</div>
+          </div>
+        </li>
+      `).join('');
+    } catch (e) {
+      document.getElementById('history-list').innerHTML = `<li>Error: ${e.message}</li>`;
+    }
+  }
+</script>
+</body>
+</html>
